@@ -20,6 +20,10 @@ export type NbaResearchData = {
 };
 
 export type ResearchAnalysis = {
+  bestCreatorAngle: string;
+  whyNow: string;
+  suggestedContentFormat: "Tweet" | "Thread" | "TikTok/Reels" | "Newsletter";
+  confidence: "High" | "Medium" | "Low";
   creatorAngle: string;
   narrative: string;
   risk: string;
@@ -43,6 +47,8 @@ export type RecentNewsArticle = {
   url: string;
   publishedAt: string;
   description: string;
+  signalScore?: number;
+  signalReason?: string;
 };
 
 export type ResearchResponse = {

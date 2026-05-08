@@ -10,6 +10,39 @@ const COLLEGE_EXCLUSION_TERMS = [
   "uconn",
   "march madness",
 ];
+const CREDIBLE_SPORTS_SOURCES = [
+  "espn",
+  "the athletic",
+  "nba.com",
+  "bleacher report",
+  "sports illustrated",
+  "yahoo sports",
+  "cbs sports",
+  "nbc sports",
+  "fox sports",
+  "clutchpoints",
+  "hoops rumors",
+  "basketball network",
+  "sb nation",
+];
+const DISCUSSION_TERMS = [
+  "trade",
+  "injury",
+  "return",
+  "rumor",
+  "extension",
+  "contract",
+  "playoff",
+  "finals",
+  "mvp",
+  "all-star",
+  "controversy",
+  "debate",
+  "reaction",
+  "concern",
+  "question",
+  "future",
+];
 
 type NewsApiArticle = {
   title?: string | null;
@@ -100,9 +133,10 @@ async function fetchNewsQuery(
   const rawArticles = payload.articles
     .map(normalizeArticle)
     .filter((article): article is RecentNewsArticle => article !== null);
-  const filteredArticles = rawArticles.filter((article) =>
-    isRelevantArticle(article, userQuery),
-  );
+  const filteredArticles = rawArticles
+    .filter((article) => isRelevantArticle(article, userQuery))
+    .map((article) => rankArticle(article, userQuery))
+    .sort((a, b) => (b.signalScore ?? 0) - (a.signalScore ?? 0));
 
   console.info("NewsAPI source quality", {
     rawArticlesCount: rawArticles.length,
@@ -110,7 +144,9 @@ async function fetchNewsQuery(
   });
 
   const articles =
-    filteredArticles.length > 0 ? filteredArticles : rawArticles;
+    filteredArticles.length > 0
+      ? filteredArticles
+      : rawArticles.map((article) => rankArticle(article, userQuery));
 
   console.info("NewsAPI articles returned", {
     count: Math.min(articles.length, NEWS_RESULT_LIMIT),
@@ -148,6 +184,85 @@ function isRelevantArticle(article: RecentNewsArticle, userQuery: string) {
   return includesQueryTerm && includesLeagueTerm;
 }
 
+function rankArticle(
+  article: RecentNewsArticle,
+  userQuery: string,
+): RecentNewsArticle {
+  const searchable = `${article.title} ${article.description}`.toLowerCase();
+  const source = article.source.toLowerCase();
+  const queryTerms = getQueryTerms(userQuery);
+  const reasons: string[] = [];
+  let score = 0;
+
+  const exactQuery = userQuery.toLowerCase().trim();
+  if (exactQuery && searchable.includes(exactQuery)) {
+    score += 35;
+    reasons.push("directly matches the search");
+  } else if (queryTerms.some((term) => searchable.includes(term))) {
+    score += 24;
+    reasons.push("matches relevant team/player terms");
+  }
+
+  if (searchable.includes("nba")) {
+    score += 22;
+    reasons.push("NBA-specific");
+  } else if (searchable.includes("basketball")) {
+    score += 10;
+    reasons.push("basketball-related");
+  }
+
+  if (CREDIBLE_SPORTS_SOURCES.some((name) => source.includes(name))) {
+    score += 15;
+    reasons.push("credible sports source");
+  }
+
+  const recencyPoints = getRecencyScore(article.publishedAt);
+  score += recencyPoints;
+  if (recencyPoints >= 12) {
+    reasons.push("very recent");
+  } else if (recencyPoints >= 6) {
+    reasons.push("recent");
+  }
+
+  if (DISCUSSION_TERMS.some((term) => searchable.includes(term))) {
+    score += 12;
+    reasons.push("likely to create discussion");
+  }
+
+  return {
+    ...article,
+    signalScore: score,
+    signalReason:
+      reasons.length > 0
+        ? sentenceCase(reasons.slice(0, 3).join(", "))
+        : "Useful context, but weaker as a creator signal.",
+  };
+}
+
+function getRecencyScore(publishedAt: string) {
+  const publishedTime = new Date(publishedAt).getTime();
+
+  if (Number.isNaN(publishedTime)) {
+    return 0;
+  }
+
+  const ageHours = (Date.now() - publishedTime) / (1000 * 60 * 60);
+
+  if (ageHours <= 24) {
+    return 18;
+  }
+
+  if (ageHours <= 72) {
+    return 12;
+  }
+
+  if (ageHours <= 168) {
+    return 6;
+  }
+
+  return -8;
+}
+
 function getQueryTerms(query: string) {
   const normalized = query.toLowerCase().trim();
   const terms = new Set<string>([normalized]);
@@ -181,4 +296,8 @@ function getQueryTerms(query: string) {
   }
 
   return Array.from(terms);
+}
+
+function sentenceCase(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1) + ".";
 }

@@ -33,6 +33,16 @@ const researchAnalysisSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
+    bestCreatorAngle: { type: "string" },
+    whyNow: { type: "string" },
+    suggestedContentFormat: {
+      type: "string",
+      enum: ["Tweet", "Thread", "TikTok/Reels", "Newsletter"],
+    },
+    confidence: {
+      type: "string",
+      enum: ["High", "Medium", "Low"],
+    },
     creatorAngle: { type: "string" },
     narrative: { type: "string" },
     risk: { type: "string" },
@@ -60,6 +70,10 @@ const researchAnalysisSchema = {
     },
   },
   required: [
+    "bestCreatorAngle",
+    "whyNow",
+    "suggestedContentFormat",
+    "confidence",
     "creatorAngle",
     "narrative",
     "risk",
@@ -151,6 +165,7 @@ function createCompactAnalysisInput(
       publishedAt: article.publishedAt,
       description: article.description,
       url: article.url,
+      signalReason: article.signalReason,
     })),
     sourceNotes: data.sourceNotes,
   };
@@ -167,6 +182,16 @@ export async function createMockAiAnalysis(
     : "Generic NBA Report";
 
   return {
+    bestCreatorAngle:
+      recentNews[0]?.signalReason && recentNews[0]?.title
+        ? `${recentNews[0].title}: ${recentNews[0].signalReason}`
+        : data.creatorAngle,
+    whyNow:
+      recentNews.length > 0
+        ? `This angle is tied to a recent headline from ${recentNews[0].source}, giving creators a timely entry point.`
+        : "The live news signal is weak, so the safest angle comes from the local profile trend.",
+    suggestedContentFormat: recentNews.length > 0 ? "Thread" : "Tweet",
+    confidence: recentNews.length > 0 ? "Medium" : "Low",
     creatorAngle: data.creatorAngle,
     narrative: data.narrative,
     risk: data.risk,
@@ -260,6 +285,11 @@ function getSystemInstructions() {
     "You are SportsSignal, an AI sports research terminal for NBA creators.",
     "Use only the supplied compact mock NBA data. Do not claim live stats, injuries, standings, odds, or breaking news.",
     "Treat recentNews as the freshest signal when it is present. Use it to sharpen the angle, but do not invent details beyond the article title, source, date, description, and URL.",
+    "Prioritize the strongest recent signal. The first recentNews item is internally ranked as the best available signal.",
+    "Separate facts from interpretation: cite article titles/sources as facts, then make clear creator-facing interpretation from those facts.",
+    "If recentNews is empty or weak, say the signal is weak and lean on the mock NBA profile rather than pretending there is a strong news peg.",
+    "Generate angles that are useful for NBA creators, not generic summaries.",
+    "Include bestCreatorAngle, whyNow, suggestedContentFormat, and confidence. Confidence must be High, Medium, or Low.",
     "Write concise, specific, copy-ready material for NBA Twitter/X, TikTok/Reels, and newsletters.",
     "Pair every strong narrative with a credible risk or counterargument.",
     "Return JSON only, matching the provided schema exactly.",
@@ -293,6 +323,11 @@ function isResearchAnalysis(value: unknown): value is ResearchAnalysis {
 
   return (
     typeof value.creatorAngle === "string" &&
+    typeof value.bestCreatorAngle === "string" &&
+    typeof value.whyNow === "string" &&
+    isSuggestedContentFormat(value.suggestedContentFormat) &&
+    isConfidence(value.confidence) &&
+    typeof value.creatorAngle === "string" &&
     typeof value.narrative === "string" &&
     typeof value.risk === "string" &&
     typeof value.hook === "string" &&
@@ -303,6 +338,21 @@ function isResearchAnalysis(value: unknown): value is ResearchAnalysis {
     typeof value.newsletterBlurb === "string" &&
     isLabeledTextArray(value.dataSourcesNotes)
   );
+}
+
+function isSuggestedContentFormat(
+  value: unknown,
+): value is ResearchAnalysis["suggestedContentFormat"] {
+  return (
+    value === "Tweet" ||
+    value === "Thread" ||
+    value === "TikTok/Reels" ||
+    value === "Newsletter"
+  );
+}
+
+function isConfidence(value: unknown): value is ResearchAnalysis["confidence"] {
+  return value === "High" || value === "Medium" || value === "Low";
 }
 
 function isLabeledTextArray(value: unknown): value is LabeledText[] {

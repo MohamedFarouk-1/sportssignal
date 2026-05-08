@@ -244,6 +244,19 @@ export default function Home() {
                 <RecentSignalCard articles={research.recentNews} />
 
                 <div className="grid gap-3 md:grid-cols-2">
+                  <SignalCard
+                    label="Best Creator Angle"
+                    value={research.analysis.bestCreatorAngle}
+                  />
+                  <SignalCard label="Why Now" value={research.analysis.whyNow} />
+                  <SignalCard
+                    label="Suggested Format"
+                    value={research.analysis.suggestedContentFormat}
+                  />
+                  <SignalCard
+                    label="Confidence"
+                    value={research.analysis.confidence}
+                  />
                   <SignalCard label="Hook" value={research.analysis.hook} />
                   <SignalCard label="Risk" value={research.analysis.risk} />
                 </div>
@@ -455,35 +468,72 @@ function RecentSignalCard({
 }: {
   articles: RecentNewsArticle[];
 }) {
+  const [topArticle, ...supportingArticles] = articles;
+
   return (
     <article className="rounded-md border border-white/10 bg-white/[0.03] p-4">
       <SectionHeader label="Freshest Inputs" title="Recent Signal" />
-      {articles.length > 0 ? (
-        <ul className="mt-4 space-y-3">
-          {articles.map((article) => (
-            <li
-              key={article.url}
-              className="border-l border-cyan-300/30 pl-3 text-sm leading-6"
+      {topArticle ? (
+        <div className="mt-4 space-y-4">
+          <div className="border-l border-cyan-300/40 pl-3">
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-cyan-200">
+              Top Signal
+            </p>
+            <a
+              href={topArticle.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 block text-base font-semibold leading-6 text-white transition hover:text-cyan-200"
             >
-              <a
-                href={article.url}
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-zinc-100 transition hover:text-cyan-200"
-              >
-                {article.title}
-              </a>
-              <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">
-                {article.source} · {formatPublishedAt(article.publishedAt)}
+              {topArticle.title}
+            </a>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <SignalDetail
+              label="Why it matters"
+              value={
+                topArticle.signalReason ||
+                "Useful recent context for framing the creator angle."
+              }
+            />
+            <SignalDetail label="Source" value={topArticle.source} />
+            <SignalDetail
+              label="Published date"
+              value={formatPublishedAt(topArticle.publishedAt)}
+            />
+            <SignalDetail
+              label="Context"
+              value={topArticle.description || "No article description provided."}
+            />
+          </div>
+
+          {supportingArticles.length > 0 ? (
+            <div className="border-t border-white/10 pt-3">
+              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                Also used
               </p>
-              {article.description ? (
-                <p className="mt-1 text-sm leading-6 text-zinc-400">
-                  {article.description}
-                </p>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+              <ul className="mt-2 space-y-2">
+                {supportingArticles.slice(0, 2).map((article) => (
+                  <li key={article.url} className="text-sm leading-6">
+                    <a
+                      href={article.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-zinc-300 transition hover:text-cyan-200"
+                    >
+                      {article.title}
+                    </a>
+                    <span className="text-zinc-600">
+                      {" "}
+                      · {article.source}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
       ) : (
         <p className="mt-4 text-sm leading-6 text-zinc-500">
           No recent news signal is configured or available for this query. The
@@ -491,6 +541,17 @@ function RecentSignalCard({
         </p>
       )}
     </article>
+  );
+}
+
+function SignalDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-white/10 bg-black/20 p-3">
+      <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+        {label}
+      </p>
+      <p className="mt-1 text-sm leading-6 text-zinc-300">{value}</p>
+    </div>
   );
 }
 
