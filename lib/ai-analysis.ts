@@ -6,10 +6,11 @@ import type {
 } from "@/types/research";
 
 const DEFAULT_OPENAI_MODEL = "gpt-4.1-mini";
-const OPENAI_TIMEOUT_MS = 7000;
+const OPENAI_TIMEOUT_MS = 15000;
 const OPENAI_BILLING_WARNING =
   "OpenAI API billing or credits issue. Mock fallback is available.";
-const OPENAI_TIMEOUT_WARNING = "AI request timed out. Showing mock fallback.";
+const OPENAI_TIMEOUT_WARNING =
+  "AI request took too long. Showing mock fallback.";
 
 export type AiAnalysisResult = {
   analysis: ResearchAnalysis;
