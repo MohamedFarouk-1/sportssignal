@@ -1,7 +1,11 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import type { LabeledText, ResearchResponse } from "@/types/research";
+import type {
+  LabeledText,
+  RecentNewsArticle,
+  ResearchResponse,
+} from "@/types/research";
 
 const quickSearches = [
   "Boston Celtics",
@@ -12,6 +16,7 @@ const quickSearches = [
 ];
 
 const emptySections = [
+  "Recent Signal",
   "Key Insights",
   "Viral Tweet Ideas",
   "Tweet Thread",
@@ -236,6 +241,8 @@ export default function Home() {
 
             {research ? (
               <div className="grid gap-4 p-4 sm:p-5">
+                <RecentSignalCard articles={research.recentNews} />
+
                 <div className="grid gap-3 md:grid-cols-2">
                   <SignalCard label="Hook" value={research.analysis.hook} />
                   <SignalCard label="Risk" value={research.analysis.risk} />
@@ -443,6 +450,50 @@ function AnalysisModeBadge({
   );
 }
 
+function RecentSignalCard({
+  articles,
+}: {
+  articles: RecentNewsArticle[];
+}) {
+  return (
+    <article className="rounded-md border border-white/10 bg-white/[0.03] p-4">
+      <SectionHeader label="Freshest Inputs" title="Recent Signal" />
+      {articles.length > 0 ? (
+        <ul className="mt-4 space-y-3">
+          {articles.map((article) => (
+            <li
+              key={article.url}
+              className="border-l border-cyan-300/30 pl-3 text-sm leading-6"
+            >
+              <a
+                href={article.url}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-zinc-100 transition hover:text-cyan-200"
+              >
+                {article.title}
+              </a>
+              <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+                {article.source} · {formatPublishedAt(article.publishedAt)}
+              </p>
+              {article.description ? (
+                <p className="mt-1 text-sm leading-6 text-zinc-400">
+                  {article.description}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-4 text-sm leading-6 text-zinc-500">
+          No recent news signal is configured or available for this query. The
+          analysis can still run from the local mock NBA profile.
+        </p>
+      )}
+    </article>
+  );
+}
+
 function ResultList({
   title,
   label,
@@ -584,4 +635,19 @@ function SectionHeader({
 
 function formatLabeledItems(items: LabeledText[]) {
   return items.map((item) => `${item.label}: ${item.text}`).join("\n");
+}
+
+function formatPublishedAt(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }

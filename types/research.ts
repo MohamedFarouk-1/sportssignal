@@ -37,9 +37,18 @@ export type LabeledText = {
   text: string;
 };
 
+export type RecentNewsArticle = {
+  title: string;
+  source: string;
+  url: string;
+  publishedAt: string;
+  description: string;
+};
+
 export type ResearchResponse = {
   query: string;
   data: NbaResearchData;
+  recentNews: RecentNewsArticle[];
   analysis: ResearchAnalysis;
   analysisMode: "ai" | "mock";
   warning?: string;

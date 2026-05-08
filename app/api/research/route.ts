@@ -1,5 +1,6 @@
 import { createAiAnalysis } from "@/lib/ai-analysis";
 import { getMockNbaData } from "@/lib/nba-data";
+import { fetchRecentNews } from "@/lib/news-data";
 
 export async function POST(request: Request) {
   try {
@@ -14,11 +15,16 @@ export async function POST(request: Request) {
     }
 
     const data = await getMockNbaData(query);
-    const { analysis, analysisMode, warning } = await createAiAnalysis(data);
+    const recentNews = await fetchRecentNews(query);
+    const { analysis, analysisMode, warning } = await createAiAnalysis(
+      data,
+      recentNews,
+    );
 
     return Response.json({
       query,
       data,
+      recentNews,
       analysis,
       analysisMode,
       ...(warning ? { warning } : {}),

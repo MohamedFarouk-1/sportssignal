@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import type {
   LabeledText,
   NbaResearchData,
+  RecentNewsArticle,
   ResearchAnalysis,
 } from "@/types/research";
 
@@ -74,13 +75,14 @@ const researchAnalysisSchema = {
 
 export async function createAiAnalysis(
   data: NbaResearchData,
+  recentNews: RecentNewsArticle[],
 ): Promise<AiAnalysisResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
 
   if (!apiKey) {
     return {
-      analysis: await createMockAiAnalysis(data),
+      analysis: await createMockAiAnalysis(data, recentNews),
       analysisMode: "mock",
     };
   }
@@ -95,7 +97,7 @@ export async function createAiAnalysis(
     const response = await client.responses.create({
       model,
       instructions: getSystemInstructions(),
-      input: JSON.stringify(createCompactAnalysisInput(data)),
+      input: JSON.stringify(createCompactAnalysisInput(data, recentNews)),
       text: {
         format: {
           type: "json_schema",
@@ -120,14 +122,17 @@ export async function createAiAnalysis(
     logOpenAiError(model, error);
 
     return {
-      analysis: await createMockAiAnalysis(data),
+      analysis: await createMockAiAnalysis(data, recentNews),
       analysisMode: "mock",
       warning: getFallbackWarning(error),
     };
   }
 }
 
-function createCompactAnalysisInput(data: NbaResearchData) {
+function createCompactAnalysisInput(
+  data: NbaResearchData,
+  recentNews: RecentNewsArticle[],
+) {
   return {
     query: data.query,
     subject: data.displayName,
@@ -140,12 +145,20 @@ function createCompactAnalysisInput(data: NbaResearchData) {
     signals: data.recentSignals,
     snapshot: data.performanceSnapshot,
     stats: data.notableStats,
+    recentNews: recentNews.map((article) => ({
+      title: article.title,
+      source: article.source,
+      publishedAt: article.publishedAt,
+      description: article.description,
+      url: article.url,
+    })),
     sourceNotes: data.sourceNotes,
   };
 }
 
 export async function createMockAiAnalysis(
   data: NbaResearchData,
+  recentNews: RecentNewsArticle[] = [],
 ): Promise<ResearchAnalysis> {
   const subject = data.displayName;
   const subjectNoun = data.subjectType === "team" ? "team" : "player";
@@ -172,8 +185,11 @@ export async function createMockAiAnalysis(
         text: data.risk,
       },
       {
-        label: "Data Signal",
-        text: `${data.performanceSnapshot.recordOrTrend}. ${data.notableStats[0]}`,
+        label: recentNews.length > 0 ? "Recent Signal" : "Data Signal",
+        text:
+          recentNews.length > 0
+            ? `${recentNews[0].title} (${recentNews[0].source}). ${data.notableStats[0]}`
+            : `${data.performanceSnapshot.recordOrTrend}. ${data.notableStats[0]}`,
       },
     ],
     viralTweetIdeas: [
@@ -243,12 +259,13 @@ function getSystemInstructions() {
   return [
     "You are SportsSignal, an AI sports research terminal for NBA creators.",
     "Use only the supplied compact mock NBA data. Do not claim live stats, injuries, standings, odds, or breaking news.",
+    "Treat recentNews as the freshest signal when it is present. Use it to sharpen the angle, but do not invent details beyond the article title, source, date, description, and URL.",
     "Write concise, specific, copy-ready material for NBA Twitter/X, TikTok/Reels, and newsletters.",
     "Pair every strong narrative with a credible risk or counterargument.",
     "Return JSON only, matching the provided schema exactly.",
     "Required content: Creator Angle, Narrative, Risk, Hook, Key Insights, Viral Tweet Ideas, Tweet Thread, TikTok/Reels Script, Newsletter Blurb, and Data Sources / Notes.",
     "Use 4 keyInsights, 4 viralTweetIdeas, 5-6 tweetThread items, and 5-6 tiktokReelsScript beats.",
-    "For dataSourcesNotes, state that current data is mock/local and identify the future integration path.",
+    "For dataSourcesNotes, include whether recent news was used and state that the NBA profile data remains mock/local.",
   ].join("\n");
 }
 
