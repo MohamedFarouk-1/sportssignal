@@ -6,7 +6,7 @@ import type {
 } from "@/types/research";
 
 const DEFAULT_OPENAI_MODEL = "gpt-4.1-mini";
-const OPENAI_TIMEOUT_MS = 15000;
+const OPENAI_TIMEOUT_MS = 20000;
 const OPENAI_BILLING_WARNING =
   "OpenAI API billing or credits issue. Mock fallback is available.";
 const OPENAI_TIMEOUT_WARNING =
