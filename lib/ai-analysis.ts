@@ -5,7 +5,7 @@ import type {
   ResearchAnalysis,
 } from "@/types/research";
 
-const OPENAI_MODEL = "gpt-5.2";
+const DEFAULT_OPENAI_MODEL = "gpt-4.1-mini";
 const OPENAI_TIMEOUT_MS = 7000;
 const OPENAI_BILLING_WARNING =
   "OpenAI API billing or credits issue. Mock fallback is available.";
@@ -75,6 +75,7 @@ export async function createAiAnalysis(
   data: NbaResearchData,
 ): Promise<AiAnalysisResult> {
   const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
 
   if (!apiKey) {
     return {
@@ -91,16 +92,9 @@ export async function createAiAnalysis(
     });
 
     const response = await client.responses.create({
-      model: OPENAI_MODEL,
+      model,
       instructions: getSystemInstructions(),
-      input: JSON.stringify(
-        {
-          userQuery: data.query,
-          mockNbaData: data,
-        },
-        null,
-        2,
-      ),
+      input: JSON.stringify(createCompactAnalysisInput(data)),
       text: {
         format: {
           type: "json_schema",
@@ -122,7 +116,7 @@ export async function createAiAnalysis(
       analysisMode: "ai",
     };
   } catch (error) {
-    console.error("OpenAI analysis failed", error);
+    logOpenAiError(model, error);
 
     return {
       analysis: await createMockAiAnalysis(data),
@@ -130,6 +124,23 @@ export async function createAiAnalysis(
       warning: getFallbackWarning(error),
     };
   }
+}
+
+function createCompactAnalysisInput(data: NbaResearchData) {
+  return {
+    query: data.query,
+    subject: data.displayName,
+    subjectType: data.subjectType,
+    profileType: data.matchedProfile ? "featured_mock_profile" : "generic_mock_report",
+    creatorAngle: data.creatorAngle,
+    narrative: data.narrative,
+    risk: data.risk,
+    hook: data.hook,
+    signals: data.recentSignals,
+    snapshot: data.performanceSnapshot,
+    stats: data.notableStats,
+    sourceNotes: data.sourceNotes,
+  };
 }
 
 export async function createMockAiAnalysis(
@@ -230,15 +241,13 @@ export async function createMockAiAnalysis(
 function getSystemInstructions() {
   return [
     "You are SportsSignal, an AI sports research terminal for NBA creators.",
-    "Use only the supplied mock NBA data. Do not claim live stats, injuries, standings, odds, or breaking news.",
-    "Write for NBA creators who need sharp, copy-ready material for X/Twitter, TikTok, Reels, and newsletters.",
-    "Make the analysis specific, opinionated, and balanced. Pair every strong narrative with a credible risk or counterargument.",
+    "Use only the supplied compact mock NBA data. Do not claim live stats, injuries, standings, odds, or breaking news.",
+    "Write concise, specific, copy-ready material for NBA Twitter/X, TikTok/Reels, and newsletters.",
+    "Pair every strong narrative with a credible risk or counterargument.",
     "Return JSON only, matching the provided schema exactly.",
     "Required content: Creator Angle, Narrative, Risk, Hook, Key Insights, Viral Tweet Ideas, Tweet Thread, TikTok/Reels Script, Newsletter Blurb, and Data Sources / Notes.",
-    "For keyInsights, include labels such as Creator Angle, Narrative, Risk, and Data Signal.",
-    "For tweetThread, return 5-7 labeled items with tweet-ready text.",
-    "For tiktokReelsScript, return labeled beats with timing or production structure.",
-    "For dataSourcesNotes, clearly state that current data is mock/local and identify the future integration path.",
+    "Use 4 keyInsights, 4 viralTweetIdeas, 5-6 tweetThread items, and 5-6 tiktokReelsScript beats.",
+    "For dataSourcesNotes, state that current data is mock/local and identify the future integration path.",
   ].join("\n");
 }
 
@@ -335,6 +344,34 @@ function getFallbackWarning(error: unknown) {
   }
 
   return undefined;
+}
+
+function logOpenAiError(model: string, error: unknown) {
+  console.error("OpenAI analysis failed", {
+    model,
+    errorType: getOpenAiErrorType(error),
+    error,
+  });
+}
+
+function getOpenAiErrorType(error: unknown) {
+  if (isTimeoutError(error)) {
+    return "timeout";
+  }
+
+  if (isBillingOrCreditsError(error)) {
+    return "billing_or_credits";
+  }
+
+  if (isRecord(error) && typeof error.status === "number") {
+    return `http_${error.status}`;
+  }
+
+  if (isRecord(error) && typeof error.name === "string") {
+    return error.name;
+  }
+
+  return "unknown";
 }
 
 function getSearchableErrorText(error: unknown) {
