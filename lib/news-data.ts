@@ -2,6 +2,14 @@ import type { RecentNewsArticle } from "@/types/research";
 
 const NEWS_API_URL = "https://newsapi.org/v2/everything";
 const NEWS_RESULT_LIMIT = 5;
+const NEWS_RAW_RESULT_LIMIT = 12;
+const COLLEGE_EXCLUSION_TERMS = [
+  "ncaa",
+  "college",
+  "michigan",
+  "uconn",
+  "march madness",
+];
 
 type NewsApiArticle = {
   title?: string | null;
@@ -35,13 +43,13 @@ export async function fetchRecentNews(
 
   try {
     const primaryQuery = `"${query}" AND (NBA OR basketball)`;
-    const primaryArticles = await fetchNewsQuery(primaryQuery, apiKey);
+    const primaryArticles = await fetchNewsQuery(primaryQuery, query, apiKey);
 
     if (primaryArticles.length > 0) {
       return primaryArticles;
     }
 
-    return fetchNewsQuery(`${query} basketball`, apiKey);
+    return fetchNewsQuery(`${query} basketball`, query, apiKey);
   } catch (error) {
     console.error("NewsAPI fetch failed", error);
     return [];
@@ -50,13 +58,14 @@ export async function fetchRecentNews(
 
 async function fetchNewsQuery(
   searchQuery: string,
+  userQuery: string,
   apiKey: string,
 ): Promise<RecentNewsArticle[]> {
   const url = new URL(NEWS_API_URL);
   url.searchParams.set("q", searchQuery);
   url.searchParams.set("language", "en");
   url.searchParams.set("sortBy", "publishedAt");
-  url.searchParams.set("pageSize", String(NEWS_RESULT_LIMIT));
+  url.searchParams.set("pageSize", String(NEWS_RAW_RESULT_LIMIT));
   url.searchParams.set("page", "1");
 
   console.info("NewsAPI search query", {
@@ -88,16 +97,26 @@ async function fetchNewsQuery(
     return [];
   }
 
-  const articles = payload.articles
+  const rawArticles = payload.articles
     .map(normalizeArticle)
-    .filter((article): article is RecentNewsArticle => article !== null)
-    .slice(0, NEWS_RESULT_LIMIT);
+    .filter((article): article is RecentNewsArticle => article !== null);
+  const filteredArticles = rawArticles.filter((article) =>
+    isRelevantArticle(article, userQuery),
+  );
 
-  console.info("NewsAPI articles returned", {
-    count: articles.length,
+  console.info("NewsAPI source quality", {
+    rawArticlesCount: rawArticles.length,
+    filteredArticlesCount: filteredArticles.length,
   });
 
-  return articles;
+  const articles =
+    filteredArticles.length > 0 ? filteredArticles : rawArticles;
+
+  console.info("NewsAPI articles returned", {
+    count: Math.min(articles.length, NEWS_RESULT_LIMIT),
+  });
+
+  return articles.slice(0, NEWS_RESULT_LIMIT);
 }
 
 function normalizeArticle(article: NewsApiArticle): RecentNewsArticle | null {
@@ -112,4 +131,54 @@ function normalizeArticle(article: NewsApiArticle): RecentNewsArticle | null {
     publishedAt: article.publishedAt,
     description: article.description || "",
   };
+}
+
+function isRelevantArticle(article: RecentNewsArticle, userQuery: string) {
+  const searchable = `${article.title} ${article.description}`.toLowerCase();
+
+  if (COLLEGE_EXCLUSION_TERMS.some((term) => searchable.includes(term))) {
+    return false;
+  }
+
+  const queryTerms = getQueryTerms(userQuery);
+  const includesQueryTerm = queryTerms.some((term) => searchable.includes(term));
+  const includesLeagueTerm =
+    searchable.includes("nba") || searchable.includes("basketball");
+
+  return includesQueryTerm && includesLeagueTerm;
+}
+
+function getQueryTerms(query: string) {
+  const normalized = query.toLowerCase().trim();
+  const terms = new Set<string>([normalized]);
+
+  normalized
+    .split(/\s+/)
+    .filter((term) => term.length > 2)
+    .forEach((term) => terms.add(term));
+
+  if (normalized.includes("oklahoma city thunder")) {
+    terms.add("okc");
+    terms.add("thunder");
+  }
+
+  if (normalized.includes("los angeles lakers")) {
+    terms.add("lakers");
+  }
+
+  if (normalized.includes("boston celtics")) {
+    terms.add("celtics");
+  }
+
+  if (normalized.includes("anthony edwards")) {
+    terms.add("ant");
+    terms.add("edwards");
+  }
+
+  if (normalized.includes("nikola jokic")) {
+    terms.add("jokic");
+    terms.add("nuggets");
+  }
+
+  return Array.from(terms);
 }
